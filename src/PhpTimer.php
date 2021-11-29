@@ -2,122 +2,121 @@
 
 namespace Marshmallow\PhpTimer;
 
+use Marshmallow\PhpTimer\Output\Ray;
+use Marshmallow\PhpTimer\Output\Alert;
+use Marshmallow\PhpTimer\Objects\Timer;
+use Marshmallow\PhpTimer\Output\Comment;
+use Marshmallow\PhpTimer\Output\Console;
+use Marshmallow\PhpTimer\Collections\TimerCollection;
+
 class PhpTimer
 {
-    protected $main_start_time;
-    protected $main_end_time;
+    protected ?Timer $total_timer = null;
 
-    protected $timers = [];
+    protected string $output = '';
 
-    public function start(string $name = null)
+    protected array $timers = [];
+
+    protected array $output_data = [];
+
+    public function start(string $name = null): ?string
     {
-        $this->main_start_time = hrtime(true);
-
         if ($name) {
             if (!array_key_exists($name, $this->timers)) {
-                $this->timers[$name] = [
-                    'start_time' => hrtime(true),
-                    'end_time' => null,
-                ];
-
-                return '<!-- `' . $name . '` Timer has started -->' . "\n";
+                $this->timers[$name] = new TimerCollection([]);
             }
+
+            $timer = $this->timers[$name]->add(Timer::start($name));
+
+            return $timer->last()->outputStartComment();
         } else {
-            return '<!-- `Main` Timer has started -->' . "\n";
+            $this->total_timer = Timer::start(__('Main'));
+            return $this->total_timer->outputStartComment();
         }
     }
 
-    public function end(string $name = null)
+    public function end(string $name = null): ?string
     {
         if ($name) {
             if (array_key_exists($name, $this->timers)) {
-                $this->timers[$name]['end_time'] = hrtime(true);
-                return '<!-- `' . $name . '` Timer has ended -->' . "\n";
+                $timer = $this->timers[$name]->last();
+                return $timer->stop()->outputStopComment();
             }
         } else {
-            $this->main_end_time = hrtime(true);
-        }
-        if (!$name) {
+            $this->total_timer->stop();
             return $this->output();
         }
     }
 
-    protected function calculateTimerInSeconds($start, $end)
+    protected function output(): string
     {
-        return ($end - $start) / 1000000000;   // Seconds
+        $total_time = $this->total_timer->calculateTimerInSeconds();
+        foreach ($this->timers as $timer_collection) {
+            $this->output_data[] = $timer_collection->toOutputArray($total_time);
+        }
+
+        $this->output_data[] = $this->total_timer->toArray($total_time);
+
+        return $this->commentOutput()
+            ->consoleOutput()
+            ->alertOutput()
+            ->rayOutput()
+            ->getOutput();
     }
 
-    protected function percentage($total, $mark)
+    protected function setOutput(string $output): self
+    {
+        $this->output .= $output;
+        return $this;
+    }
+
+    protected function commentOutput(): self
+    {
+        return $this->setOutput(
+            Comment::make($this->output_data)
+        );
+    }
+
+    protected function consoleOutput(): self
+    {
+        return $this->setOutput(
+            Console::make($this->output_data)
+        );
+    }
+
+    protected function alertOutput(): self
+    {
+        return $this->setOutput(
+            Alert::make($this->output_data)
+        );
+    }
+
+    protected function rayOutput(): self
+    {
+        Ray::make($this->output_data);
+        return $this;
+    }
+
+    protected function getOutput(): string
+    {
+        return $this->output;
+    }
+
+    public function percentage($total, $mark): string
     {
         return round((($mark / $total) * 100), 4) . '%';
     }
 
-    protected function output()
+    /**
+     * Output the totals to an array which can be used in the
+     * the output controller.
+     */
+    public function outputArray(string $name, float $time, float $total_time): array
     {
-        $output_data = [];
-        $total_time = $this->calculateTimerInSeconds($this->main_start_time, $this->main_end_time);
-        foreach ($this->timers as $name => $timer) {
-            $time = $this->calculateTimerInSeconds($timer['start_time'], $timer['end_time']);
-            $output_data[] = [
-                'name' => $name,
-                'time' => $time,
-                'percentage' => $this->percentage($total_time, $time),
-            ];
-        }
-
-        $output_data[] = [
-            'name' => 'Total',
-            'time' => $total_time,
-            'percentage' => '100%',
+        return [
+            'name' => $name,
+            'time' => $time,
+            'percentage' => $this->percentage($total_time, $time),
         ];
-
-        $output = $this->outputAsComment($output_data);
-        $output .= $this->outputToBrowserConsole($output_data);
-        $output .= $this->outputAlert($output_data);
-
-        $this->outputToRay($output_data);
-
-        return $output;
-    }
-
-    protected function outputAsComment(array $output_data)
-    {
-        $output = "\n" . '<!--' . "\n";
-        $output .= 'Here is your timer results: ' . "\n\n";
-        foreach ($output_data as $timer) {
-            $output .= $timer['name'] . ":\t\t" . $timer['time'] . ' seconds' . "\t\t" . $timer['percentage'] . "\n";
-        }
-        $output .= '-->';
-
-        return $output;
-    }
-
-    protected function outputToBrowserConsole($output_data)
-    {
-        $output = '<script>';
-        $output .= 'console.warn("HERE IS YOUR TIMER RESULTS:");';
-        $output .= 'console.log(' . json_encode($output_data) . ');';
-        $output .= '</script>';
-
-        return $output;
-    }
-
-    protected function outputAlert($output_data)
-    {
-        $output = '<script>';
-        foreach ($output_data as $timer) {
-            $string = $timer['name'] . ": " . $timer['time'] . ' seconds' . " " . $timer['percentage'];
-            $output .= 'alert("' . $string . '");';
-        }
-        $output .= '</script>';
-
-        return $output;
-    }
-
-    protected function outputToRay($output_data)
-    {
-        foreach ($output_data as $timer) {
-            ray($timer['name'] . ":\t\t" . $timer['time'] . ' seconds' . "\t\t" . $timer['percentage']);
-        }
     }
 }

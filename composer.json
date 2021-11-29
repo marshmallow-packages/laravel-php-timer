@@ -1,0 +1,40 @@
+{
+    "name": "marshmallow/laravel-php-timer",
+    "description": "A simple timer to check where your php might be slow.",
+    "keywords": [
+        "marshmallow"
+    ],
+    "homepage": "https://github.com/Marshmallow-Development/",
+    "type": "library",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Stef",
+            "email": "stef@marshmallow.dev",
+            "homepage": "https://marshmallow.dev",
+            "role": "Developer"
+        }
+    ],
+    "support": {
+        "email": "stef@marshmallow.dev"
+    },
+    "minimum-stability": "dev",
+    "require": {
+        "php": "^7.4|^8.0"
+    },
+    "autoload": {
+        "psr-4": {
+            "Marshmallow\\PhpTimer\\": "src"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Marshmallow\\PhpTimer\\ServiceProvider"
+            ],
+            "aliases": {
+                "PhpTimer": "Marshmallow\\PhpTimer\\Facades\\PhpTimer"
+            }
+        }
+    }
+}
